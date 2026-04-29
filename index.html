@@ -95,6 +95,7 @@
     <script>
         let signer;
         let contract;
+        // 確保地址正確
         const contractAddress = "0x0ED432A7822971777080eE232B095758360CF924";
         const abi = [
             { "inputs": [{ "internalType": "uint256", "name": "_data", "type": "uint256" }], "name": "set", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
@@ -102,42 +103,60 @@
         ];
 
         async function connectWallet() {
+            // 檢查 ethers 是否載入
+            if (typeof ethers === 'undefined') {
+                alert("錯誤：ethers.js 尚未載入，請檢查網路連線或 CDN 網址。");
+                return;
+            }
+
             if (window.ethereum) {
-                const provider = new ethers.providers.Web3Provider(window.ethereum);
-                await provider.send("eth_requestAccounts", []);
-                signer = provider.getSigner();
-                const address = await signer.getAddress();
-                
-                document.getElementById("log").innerText = "錢包已連接: " + address;
-                document.getElementById("updateBtn").disabled = false;
-                document.getElementById("connectBtn").innerText = "錢包已連接";
-                
-                // 讀取初始值
-                contract = new ethers.Contract(contractAddress, abi, provider);
-                const val = await contract.data();
-                document.getElementById("currentData").innerText = "當前合約數值: " + val;
+                try {
+                    // 1. 請求連接錢包
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    const provider = new ethers.providers.Web3Provider(window.ethereum);
+                    
+                    // 2. 獲取簽署者
+                    signer = provider.getSigner();
+                    const address = await signer.getAddress();
+                    
+                    // 3. 更新 UI
+                    document.getElementById("log").innerText = "錢包已連接: " + address;
+                    document.getElementById("updateBtn").disabled = false;
+                    document.getElementById("connectBtn").innerText = "錢包已連接";
+                    
+                    // 4. 讀取初始值
+                    contract = new ethers.Contract(contractAddress, abi, provider);
+                    const val = await contract.data();
+                    document.getElementById("currentData").innerText = "當前合約數值: " + val;
+                    
+                    alert("連接成功！你的地址是：" + address);
+                } catch (err) {
+                    console.error(err);
+                    alert("連接失敗：" + err.message);
+                }
             } else {
-                alert("請安裝 MetaMask");
+                alert("找不到 MetaMask！請確保你已安裝並啟用外掛。");
             }
         }
 
         async function setData() {
             const val = document.getElementById("inputValue").value;
-            if(!val) return alert("請輸入數值");
+            if(!val) return alert("請輸入數字");
             
             const contractWithSigner = new ethers.Contract(contractAddress, abi, signer);
             try {
                 document.getElementById("log").innerText = "等待錢包確認交易...";
                 const tx = await contractWithSigner.set(val);
                 document.getElementById("log").innerText = "交易已發送，Hash: " + tx.hash;
+                
                 await tx.wait();
                 document.getElementById("log").innerText = "更新成功！";
                 
-                // 重新讀取新數值
                 const newVal = await contractWithSigner.data();
                 document.getElementById("currentData").innerText = "當前合約數值: " + newVal;
             } catch (err) {
                 document.getElementById("log").innerText = "交易失敗: " + err.message;
+                alert("交易出錯，請查看日誌。");
             }
         }
     </script>
