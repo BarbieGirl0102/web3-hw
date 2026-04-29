@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HelloWorld 合約測試</title>
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js" type="application/javascript"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #ffffff;
+            margin-top: 50px;
+        }
+        .container {
+            width: 600px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        h1 { font-size: 32px; margin-bottom: 30px; }
+        h2 { font-size: 24px; margin: 20px 0; }
+        .intro { color: #666; margin-bottom: 30px; font-size: 16px; }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #333;
+            background-color: #f0f0f0;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 4px;
+        }
+        button:hover { background-color: #e0e0e0; }
+        button:disabled { color: #999; cursor: not-allowed; }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            box-sizing: border-box;
+            border: 2px solid #333;
+            border-radius: 4px;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .hint { color: #666; font-size: 14px; text-align: left; margin-bottom: 20px; }
+        .warning { background-color: #fffde7; padding: 10px; border-radius: 4px; font-size: 14px; text-align: left; margin-top: 10px; }
+        .log-box {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: left;
+            font-size: 14px;
+            color: #333;
+            margin-top: 10px;
+            min-height: 50px;
+        }
+        hr { border: 0; border-top: 1px solid #ddd; margin: 30px 0; }
+    </style>
+</head>
+<body>
+
+    <h1>HelloWorld 合約測試</h1>
+
+    <div class="container">
+        <p class="intro">這是一個簡單的網頁，用於測試已部署在 Sepolia 網路上的 HelloWorld 合約。</p>
+        
+        <h2>當前訊息</h2>
+        <button id="connectBtn" onclick="connectWallet()">連接 MetaMask</button>
+        <p id="currentData" class="hint">尚未讀取訊息，請先連接錢包。</p>
+
+        <hr>
+
+        <h2>更新訊息</h2>
+        <input type="number" id="inputValue" placeholder="輸入新的訊息...">
+        <button id="updateBtn" onclick="setData()" disabled>更新訊息</button>
+        <div class="warning">
+            ⚠️ 此操作會發送一筆交易，需要支付 Gas 費用。
+        </div>
+
+        <hr>
+
+        <h2>交易日誌</h2>
+        <div id="log" class="log-box">
+            日誌會顯示在這裡。請點擊『連接 MetaMask』按鈕，開始測試。
+        </div>
+    </div>
+
+    <script>
+        let signer;
+        let contract;
+        const contractAddress = "0x0ED432A7822971777080eE232B095758360CF924";
+        const abi = [
+            { "inputs": [{ "internalType": "uint256", "name": "_data", "type": "uint256" }], "name": "set", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+            { "inputs": [], "name": "data", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" }
+        ];
+
+        async function connectWallet() {
+            if (window.ethereum) {
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send("eth_requestAccounts", []);
+                signer = provider.getSigner();
+                const address = await signer.getAddress();
+                
+                document.getElementById("log").innerText = "錢包已連接: " + address;
+                document.getElementById("updateBtn").disabled = false;
+                document.getElementById("connectBtn").innerText = "錢包已連接";
+                
+                // 讀取初始值
+                contract = new ethers.Contract(contractAddress, abi, provider);
+                const val = await contract.data();
+                document.getElementById("currentData").innerText = "當前合約數值: " + val;
+            } else {
+                alert("請安裝 MetaMask");
+            }
+        }
+
+        async function setData() {
+            const val = document.getElementById("inputValue").value;
+            if(!val) return alert("請輸入數值");
+            
+            const contractWithSigner = new ethers.Contract(contractAddress, abi, signer);
+            try {
+                document.getElementById("log").innerText = "等待錢包確認交易...";
+                const tx = await contractWithSigner.set(val);
+                document.getElementById("log").innerText = "交易已發送，Hash: " + tx.hash;
+                await tx.wait();
+                document.getElementById("log").innerText = "更新成功！";
+                
+                // 重新讀取新數值
+                const newVal = await contractWithSigner.data();
+                document.getElementById("currentData").innerText = "當前合約數值: " + newVal;
+            } catch (err) {
+                document.getElementById("log").innerText = "交易失敗: " + err.message;
+            }
+        }
+    </script>
+</body>
+</html>
